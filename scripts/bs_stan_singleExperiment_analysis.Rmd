@@ -1,0 +1,254 @@
+RUN BS_STAN_MATRIX.R BEFORE THIS FILE!
+
+```{r setupChild, include=F}
+knitr::opts_chunk$set(echo=F,warning=F,message=F,cache=T,fig.width=12,fig.height=8)
+```
+```{r load data}
+library(plyr)
+library(ggmcmc)
+
+#source('bs_load_all_data.R')
+#allDat = bs_load_all_data()
+#load('../AllDataFrame_alsoBad.RData')
+#dat.raw = subset(allDat,allDat$removeReason!='Single');
+#dat.raw = allDat
+#dat.raw = allDataFrame;
+
+#dat = subset(dat.raw,with(dat.raw,success==1))#subset(dat.raw, with(dat.raw,subject!=26&subject!='M'&success == 1))
+#dat$subject = factor(dat$subject)
+
+#dat.orth = subset(dat,dat$stimPVisible == 2)
+#dat.uni  = subset(dat,dat$stimPVisible != 2)
+
+
+load('stan_exp1_25_09_2015')
+load('stan_exp2_25_09_2015')
+load('stan_exp3_25_09_2015')
+load('stan_expAll_allFac_28_09_2015')
+
+
+dat.exp1 = subset(dat.uni,dat.uni$experiment=='EEG')
+dat.exp1$subject = factor(dat.exp1$subject)
+dat.exp2 = subset(dat.uni,dat.uni$experiment=='Control')
+dat.exp2$subject = factor(dat.exp2$subject)
+dat.exp2$controlTrial = factor(dat.exp2$controlTrial)
+dat.exp3 = subset(dat.uni,dat.uni$experiment=='Horizontal')
+dat.exp3$subject = factor(dat.exp3$subject)
+dat.exp3$controlTrial = factor(dat.exp3$controlTrial)
+
+get_label = function(exchangeIdx,exchangeVal,formula,dat){
+  betaNames = colnames( model.matrix(formula, dat))
+  betaNames[exchangeIdx] = exchangeVal
+  beta_fix_Names = c('handedness','dominantEye')
+  label_dataframe = data.frame(Parameter=sprintf('beta.%i.',1:length(betaNames)),Label=betaNames)
+  label_dataframe = rbind(label_dataframe,data.frame(Parameter=sprintf('beta_fix.%i.',1:length(beta_fix_Names)),Label=beta_fix_Names))
+}
+
+
+
+S.exp1 = ggs(factorialFit.exp1,par_labels = get_label(exchangeIdx=NULL,
+                                                      exchangeVal= NULL,
+                                                      formula = ~1+stimLLoc + stimRLoc +oneBack,
+                                                      dat=dat.exp1),              family = 'beta')
+show(unique(S.exp1$Parameter))
+S.exp2 = ggs(factorialFit.exp2,par_labels = get_label(exchangeIdx=c(7),
+                                                      exchangeVal= c("stimRLoc:controlTrial3"),
+                                                      formula =  ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack,
+                                                      dat=dat.exp2),             family = 'beta')
+show(unique(S.exp2$Parameter))
+
+S.exp3 = ggs(factorialFit.exp3,par_labels = get_label(exchangeIdx=c(9,10),
+                                                      exchangeVal= c("stimRLoc:controlTrial1","stimRLoc:controlTrial2"),
+                                                      formula = ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack,
+                                                      dat=dat.exp3),              family = 'beta')
+show(unique(S.exp3$Parameter))
+
+```
+
+
+
+```{r experiment 1}
+
+Sfun = S.exp1
+extP = function(x){
+  return(Sfun[Sfun$Parameter==x,'value'][[1]])
+}
+
+mcmccontrast.1 = rbind(
+  data.frame(Parameter='location BS',value= (extP('stimLLoc') - (extP('stimRLoc')))/2))
+
+
+estimates.1 = ddply(mcmccontrast.1,.(Parameter),function(x){
+  cbind(data.frame(median=-median(x$value)),
+        t(quantile(-x$value,c(0.01,0.025,0.975,0.99))))
+})
+colnames(estimates.1) = c('Parameter','median','hdi0.01','hdi0.025','hdi0.975','hdi0.99')
+
+```
+
+
+```{r experiment 2}
+
+Sfun = S.exp2
+extP = function(x){
+  return(Sfun[Sfun$Parameter==x,'value'][[1]])
+}
+
+mcmccontrast.2 = rbind(
+  data.frame(Parameter='location BS',value= (extP('stimLLoc') - (extP('stimRLoc')))/2),
+  data.frame(Parameter='location above',value= ( ((extP('stimLLoc') + extP('stimLLoc:controlTrial3')) - (extP('stimRLoc') + extP('stimRLoc:controlTrial3'))))/2),
+  data.frame(Parameter='BS - above',value = -( extP('stimLLoc:controlTrial3') - extP('stimRLoc:controlTrial3') )/2) ) # minus because we want to know BS - above, i.e. BS - (BS+BS:above) > 0 => BS cancels and we are left with -BS:above >0
+
+
+estimates.2 = ddply(mcmccontrast.2,.(Parameter),function(x){
+  cbind(data.frame(median=-median(x$value)),
+        t(quantile(-x$value,c(0.01,0.025,0.975,0.99))))
+})
+colnames(estimates.2) = c('Parameter','median','hdi0.01','hdi0.025','hdi0.975','hdi0.99')
+
+
+```
+
+```{r experiment 3}
+Sfun = S.exp3
+extP = function(x){
+  return(Sfun[Sfun$Parameter==x,'value'][[1]])
+}
+
+mcmccontrast.3 = rbind( data.frame(Parameter='location outside',value= (extP('stimLLoc') - (extP('stimRLoc')))/2),
+                        data.frame(Parameter='location BS',value= ( ((extP('stimLLoc') + extP('stimLLoc:controlTrial1')) - (extP('stimRLoc') + extP('stimRLoc:controlTrial1'))))/2),
+                        data.frame(Parameter='location inside',value= ( ((extP('stimLLoc') + extP('stimLLoc:controlTrial2')) - (extP('stimRLoc') + extP('stimRLoc:controlTrial2'))))/2),
+                        data.frame(Parameter='BS - outside',value = ((extP('stimLLoc:controlTrial1')) - extP('stimRLoc:controlTrial1'))/2),
+                        data.frame(Parameter='BS - inside',value = ((extP('stimLLoc:controlTrial1') - extP('stimLLoc:controlTrial2')) - (extP('stimRLoc:controlTrial1') - extP('stimRLoc:controlTrial2')))/2) )
+
+
+
+estimates.3 = ddply(mcmccontrast.3,.(Parameter),function(x){
+  cbind(data.frame(median=-median(x$value)),
+        t(quantile(-x$value,c(0.01,0.025,0.975,0.99))))
+})
+colnames(estimates.3) = c('Parameter','median','hdi0.01','hdi0.025','hdi0.975','hdi0.99')
+
+```
+
+
+```{r combine}
+invlogit <- function(x){exp(x)/(1+exp(x))}
+estimates.exp = rbind(estimates.1,estimates.2,estimates.3)
+estimates.exp = cbind(experiment=c(rep('EEG',length(estimates.1[,1])),
+                                   rep('Control',length(estimates.2[,1])),
+                                   rep('Horiz',length(estimates.3[,1]))
+                                   ),estimates.exp)
+estimates.exp.prob = cbind(Parameter=estimates.exp[,1:2],round(invlogit(estimates.exp[,3:7])*100-50,2))
+es = estimates.exp.prob
+
+
+```
+BS Loc effect only experiment 1:  m = `r es$median[1]`% HDI_95:[`r es$hdi0.025[1]`%,`r es$hdi0.975[1]`%])
+
+We found a temporal bias for selecting the temporal stimulus inside (`r es$median[2]`%  HDI_95:[`r es$hdi0.025[2]`%,`r es$hdi0.975[2]`%]) as well as above the blind spot (`r es$median[3]`% HDI_95=[`r es$hdi0.025[3]`%,`r es$hdi0.975[3]`%]). The bias was stronger inside the blind spot (Diff:`r es$median[4]`%, HDI_95=[`r es$hdi0.025[4]`%,`r es$hdi0.975[4]`%]). 
+
+ The blind spot location again revealed the strongest effect (`r es$median[6]`%  HDI_95:[`r es$hdi0.025[6]`%,`r es$hdi0.975[6]`%]), while the location outwards resulted in a  bias of `r es$median[5]`% (HDI_95=[`r es$hdi0.025[5]`%,`r es$hdi0.975[5]`%]), whereas the one inwards, thus closest to the fixation cross, resulted in a non-significant bias of `r es$median[7]`% (HDI_95=[`r es$hdi0.025[7]`%,`r es$hdi0.975[7]`%]). Both locations show a significant difference in bias to the blind spot location (outward vs. BS: `r es$median[8]`% (HDI_95=[`r es$hdi0.025[8]`%,`r es$hdi0.975[8]`%]),   inward vs BS: `r es$median[9]`% (HDI_95=[`r es$hdi0.025[9]`%,`r es$hdi0.975[9]`%]).
+
+```{r}
+es
+outes = NULL
+
+extractPerExperiment = function(es,target){
+tmp = rep('',length(es[,1]))
+ix  =es$Parameter.experiment ==target
+tmp[ix] = sprintf('%.2f%% \t[%.2f%%,%.2f%%]',es$median[ix],es$hdi0.025[ix],es$hdi0.975[ix])
+
+return(tmp)
+}
+outes =data.frame(Parameter=(es[,2]))
+#estimatesProbRound these come from the parent knitr "bs_stan_matrix"
+
+outes$`Experiment 1 (95% CI)` = extractPerExperiment(es,'EEG')
+outes$`Experiment 2 (95% CI)` = extractPerExperiment(es,'Control')
+outes$`Experiment 3 (95% CI)` = extractPerExperiment(es,'Horiz')
+outesAll=data.frame(parameter=estimatesProbRound$`estimatesProb$Parameter`,`All experiments (95% CI)`= sprintf('%.2f%% \t[%.2f%%,%.2f%%]',estimatesProbRound$median,estimatesProbRound$hdi0.025,estimatesProbRound$hdi0.975))
+knitr::kable(outes)
+knitr::kable(outesAll)
+```
+
+
+```{r}
+# Take the raw 0 / 1 trials to percentage, and subtract subjectwise the mean
+data_to_plot = normalize_answer(get_prob_answer(dat.uni))
+# We addback the experiment information and rename EEG/Control/Horizontal to Exp1/Exp2/exp3
+data_to_plot$experiment = factor(dat.uni$experiment[match(data_to_plot$subject,dat.uni$subject)],levels=c("EEG","Control","Horizontal"),labels =c('Exp.1','Exp.2','Exp.3'))
+
+# Get the mean over the conditions (collapsing)
+datAgg = ddply(data_to_plot,.(subject,controlTrial,experiment),summarise,(mean(prob[stimLLoc==0&stimRLoc==1])-mean(prob[stimLLoc==1&stimRLoc==0]))/2*100,.drop=T)
+colnames(datAgg)=c('subject','controlTrial','experiment','prob')
+
+# Get the difference between the collapsed values
+diffAbove = cbind(ddply(subset(datAgg,datAgg$experiment=='Exp.2'),.(subject),function(x){x$prob[x$controlTrial==1] - x$prob[x$controlTrial==3]}),type='difference')
+diffOutward = cbind(ddply(subset(datAgg,datAgg$experiment=='Exp.3'),.(subject),function(x){x$prob[x$controlTrial==1] - x$prob[x$controlTrial==0]}),type='difference')
+diffInward = cbind(ddply(subset(datAgg,datAgg$experiment=='Exp.3'),.(subject),function(x){x$prob[x$controlTrial==1] - x$prob[x$controlTrial==2]}),type='difference')
+colnames(diffAbove)[2] = 'prob'
+colnames(diffOutward)[2] = 'prob'
+colnames(diffInward)[2] = 'prob'
+
+
+# For plotting, this gives the position in the plot
+diffAbove$controlTrial = 7
+diffOutward$controlTrial = 5
+diffInward$controlTrial = 6
+
+datAgg$controlTrial = as.numeric(datAgg$controlTrial)
+# combine the collapsed data with the difference data
+datAgg = rbind.fill(cbind(datAgg,type='raw'),diffAbove,diffOutward,diffInward)
+myMean = function(x,d){return(mean(x[d],trim=0.0))}
+
+# Calc bootstrapped BCA 95%CI of the mean
+aggCI = ddply(datAgg,.(controlTrial,experiment),function(x){
+          ci = boot.ci(boot(x$prob,myMean,10000),type='bca')
+          return(cbind(`hdi0.025`=ci$bca[4],`hdi0.975`=ci$bca[5],median=ci$t0,type=x$type[1]))
+})
+#aggCI$Parameter = aggCI$controlTrial+1
+# We label which are differences and which are collapsed
+aggCI$type = factor(aggCI$type,levels=c(1,2),labels=c('raw','difference'))
+# ES are the bayesian model fits
+es2 = es
+# We handcode the position for the plot and changethe experimental names
+es2$Parameter = c(2,2,4,7,1,2,3,5,6)
+es2$experiment = factor(es2$Parameter.experiment, levels=c("EEG","Control","Horiz"),labels =c('Exp.1','Exp.2','Exp.3'))
+
+colnames(aggCI)[1] = 'Parameter'
+aggCI$experiment[7:9] = c('Exp.3','Exp.3','Exp.2')
+combinedDat=rbind.fill(cbind(es2,type="model"),aggCI)
+
+cbbPalette <- c("#000000", "#E69F00","#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+#----
+# ggplot(combinedDat,aes(x = Parameter, y = median,shape=experiment,color=type))+
+#   geom_point(size = 4,position=position_dodge(width=.5))+
+#   geom_errorbar(aes(ymin = `hdi0.025`, ymax = `hdi0.975`),size = 0.75, width = 0.15, 
+#                 alpha = 0.9,position=position_dodge(width=.5)) +
+#   geom_point(data=datAgg,position=position_jitterdodge(jitter.width=0.02,dodge.width=.5),alpha=0.3,aes(x=as.numeric(controlTrial),y=prob,fill=0,group=experiment),shape=1)+
+#   labs(x = NULL, y = "Temporal Over Nasal Preference [%]") +tBE(base_family = 'sans',base_size = 16)+
+#   geom_abline(intercept = 0, slope = 0) +  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+#   scale_x_discrete(breaks = 1:7, labels=c("Outward", "Blind Spot","Inward","Above","BS vs Outward","BS vs Inward", "BS vs Above"))+theme(axis.text.x = element_text(angle = 90, hjust = 1))+scale_color_manual(values=cbbPalette)
+
+ggplot(combinedDat,aes(x = Parameter, y = median,shape=experiment,color=type))+
+  geom_point(size = 4,position=position_dodge(width=.5))+
+  geom_errorbar(aes(ymin = `hdi0.025`, ymax = `hdi0.975`),size = 0.75, width = 0.15, 
+                alpha = 0.9,position=position_dodge(width=.5)) +
+  geom_point(data=datAgg,
+             position=position_jitter(width=0.2),
+             alpha=0.3,
+             aes(x=as.numeric(controlTrial),
+                 y=prob,
+                 group=experiment),shape=1)+
+  labs(x = NULL, y = "Temporal Over Nasal Preference [%]") +tBE(base_family = 'sans',base_size = 16)+
+  geom_abline(intercept = 0, slope = 0) +
+  scale_x_discrete(breaks = 1:7, labels=c("Outward", "Blind Spot","Inward","Above","BS vs Outward","BS vs Inward", "BS vs Above"))+scale_color_manual(values=cbbPalette,guide=F)+scale_shape_discrete(guide=F)
+
+
+
+ggsave(filename="2015-12-08_differences-singleexperiment.pdf",useDingbats=FALSE,width=11.5)
+
+
+
+```

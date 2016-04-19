@@ -1,0 +1,97 @@
+---
+title: "Blind Spot Behavioural Experiment 1-3 Blind Spot's Analysis"
+author: "Benedikt Ehinger"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=F)
+
+```
+```{r set-options, echo=FALSE, cache=FALSE}
+#options(width = 120)
+```
+
+```{r initialize everything ,include = F,cache=F}
+library(boot)
+
+
+library(ggplot2);library(plyr);library(multcomp);library(lme4)
+library(psych)
+px2deg = function(x,d) { 
+
+2*atan2(x*0.276/2,d)*180/pi}  # Rechnet Pixel in Grad um (d beschreibt den Bildschirmabstand in mm)
+```
+First we load the data, we remove the unsuccesful and split it up into trials with visible orthogonal stimulus, and trials with invisible or both continuous (uni)
+```{r load data}
+
+if(!exists("dat.uni")){
+load('../AllDataFrame_alsoBad.RDATA') #allDataFrame <- createAllDataFrame()
+dat= subset(allDat,allDat$remove==F&allDat$success==1);
+dat.orth = subset(dat,dat$stimPVisible == 2)
+dat.uni  = subset(dat,dat$stimPVisible != 2)
+
+dat.uni$subjectIndex = as.numeric(factor(dat.uni$subject))
+dat.uni$controlTrial = as.factor(dat.uni$controlTrial)
+}
+#dat.raw = allDataFrame;
+#dat = subset(dat.raw, (dat.raw$subject!=26&dat.raw$subject!='M'&dat.raw$success == 1))
+#dat$subject = factor(dat$subject)
+#dat.orth = subset(dat,dat$stimPVisible == 2)
+#dat.uni  = subset(dat,dat$stimPVisible != 2)
+```
+
+
+```{r echo=F,message=F}
+
+bs = ddply(dat,.(subject,block),summarise,mean(bsXL),mean(bsXR),mean(bsYL),mean(bsYR),mean(bsSL),mean(bsSR),unique(experiment))
+colnames(bs) = c('subject','block','bsXL','bsXR','bsYL','bsYR','bsSL','bsSR','experiment')
+
+bs = ddply(bs,.(subject),summarise,mean(bsXL),mean(bsXR),mean(bsYL),mean(bsYR),mean(bsSL*2),mean(bsSR*2),unique(experiment)) # *2 radius--> diameter
+colnames(bs) = c('subject','bsXL','bsXR','bsYL','bsYR','bsSL','bsSR','experiment')
+
+bs = data.frame(cbind(bs$subject,rbind(t(apply(bs[bs$experiment!='Horizontal',2:7],1,FUN=px2deg,600)),
+t(apply(bs[bs$experiment=='Horizontal',2:7],1,FUN=px2deg,500)))))
+
+myMean = function(x,d){
+m = mean(x[d],trim=0.2)
+#show(m)
+return(m)
+};
+
+bsCI = t(apply(bs[,c('bsXL','bsXR','bsYL','bsYR','bsSL','bsSR')],FUN=function(x){
+ci = boot.ci(boot(x,myMean,10000),type='bca')
+return(cbind(ci$bca[c(4,5)],m=ci$t0))},2))[,1:3]
+colnames(bsCI) <- c('ci5','ci95','mean')
+
+diffLocationX.boot= boot(bs$bsXL+bs$bsXR,myMean,10000)
+pstar = mean(diffLocationX.boot$t>0)
+diffLocationX.p = 2*min(pstar,1-pstar)
+diffLocationX.ci = boot.ci(diffLocationX.boot,type='bca')
+
+diffLocationY.boot= boot(bs$bsYL-bs$bsYR,myMean,10000)
+pstar = mean(diffLocationY.boot$t>0)
+diffLocationY.p = 2*min(pstar,1-pstar)
+diffLocationY.ci = boot.ci(diffLocationY.boot,type='bca')
+
+diffsize.boot= boot(bs$bsSL-bs$bsSR,myMean,10000)
+pstar = mean(diffsize.boot$t>0)
+diffsize.p = 2*min(pstar,1-pstar)
+diffsize.ci = boot.ci(diffsize.boot,type='bca')
+
+```
+`r ro =function(x) round(x,2)`
+
+the blind spots (left and right) were located horizontally at `r ro(bsCI['bsXL','mean'])`° (SD=`r ro(winsor.sd(bs$bsXL))`° `r sprintf('CI:[%.2f°,%.2f°]',bsCI[1,1],bsCI[1,2])`) and `r ro(bsCI['bsXR','mean'])`° (SD=`r ro(winsor.sd(bs$bsXR))`° `r sprintf('CI:[%.2f°,%.2f°]',bsCI[2,1],bsCI[2,2])`) from the fixation cross. The mean calibrated diameter was `r ro(bsCI['bsSL','mean'])`° (SD=`r ro(winsor.sd(bs$bsSL))`° `r sprintf('CI:[%.2f°,%.2f°]',bsCI[5,1],bsCI[5,2])`) for the left and `r ro(bsCI['bsSR','mean'])`° (SD=`r ro(winsor.sd(bs$bsSR))`° `r sprintf('CI:[%.2f°,%.2f°]',bsCI[6,1],bsCI[6,2])`) for the right blind spot. Blind spots did significantly differ in size (p=`r round(diffsize.p,5)`, `r sprintf('CI:[%.2f°,%.2f°]',diffsize.ci$bca[4],diffsize.ci$bca[5])`) and in absolute horizontal position (in relation to the fixation cross; p=`r round(diffLocationX.p,5)`, `r sprintf('CI:[%.2f°,%.2f°]',diffLocationX.ci$bca[4],diffLocationX.ci$bca[5])`) with the right blind spot, on average, `r ro(bsCI[1,3]+bsCI[2,3])`° further outside from the fixation cross. No significant difference was found in the vertical direction (p=`r round(diffLocationY.p,5)`), but this is likely due to the oval shape of the blind spot in this dimension and the usage of a circle to probe the blind spot.
+
+Blind Spot position XL: `r sprintf('CI:[%.2f,%.2f]',bsCI[1,1],bsCI[1,2])`
+
+Blind Spot position XR: `r sprintf('%.2f CI:[%.2f,%.2f]',bsCI[2,3],bsCI[2,1],bsCI[2,2])`
+
+Blind Spot position YL: `r sprintf('%.2f CI:[%.2f,%.2f]',bsCI[3,3],bsCI[3,1],bsCI[3,2])`
+
+Blind Spot position YR: `r sprintf('%.2f CI:[%.2f,%.2f]',bsCI[4,3],bsCI[4,1],bsCI[4,2])`
+
+Blind Spot size     L: `r sprintf('%.2f CI:[%.2f,%.2f]',bsCI[5,3],bsCI[5,1],bsCI[5,2])`
+
+Blind Spot size R: `r sprintf('%.2f CI:[%.2f,%.2f]',bsCI[6,3],bsCI[6,1],bsCI[6,2])`
+

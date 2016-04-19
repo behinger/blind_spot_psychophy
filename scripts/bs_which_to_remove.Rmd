@@ -1,0 +1,72 @@
+```{r setup, include=F}
+knitr::opts_chunk$set(echo=T,warning=F,message=T,cache=F,fig.width=12,fig.height=8)
+library(plyr)
+```
+```{r Read Data}
+load('AllDataFrame_alsoBad.RDATA')
+dat = subset(allDat,allDat$removeReason!='Single')
+dat.ortho = subset(dat,dat$success==1&dat$stimPVisible==2)
+dat.uni = subset(dat,dat$success==1&dat$stimPVisible!=2)
+
+perf.ortho = ddply(dat.ortho,.(subject,stimRLoc,stimLLoc),summarise,perf=mean(correct))
+
+
+
+```
+
+```{r measures}
+
+
+taskInverse = ddply(perf.ortho,.(subject),summarise,num = sum(perf<0.5))
+taskInverse.vp = taskInverse$subject[taskInverse$num>2]
+
+taskBad = ddply(perf.ortho,.(subject),summarise,num = sum(perf<0.75))
+# Get subjects, which have more than two conditions a performance lower than 75%, but are not task-inverters
+taskBad.vp = taskBad$subject[taskBad$num>=2][!(taskBad$subject[taskBad$num>=2] %in% taskInverse.vp)]
+
+Ntotal = 136
+
+Net = 3
+Ntechnical = 7
+
+NsingleRemove = 45
+NinverseTask =  length(taskInverse.vp)
+NtaskBad = length(taskBad.vp)
+Nperformance = NinverseTask+NtaskBad
+
+Nexperiment = Ntechnical + Net
+
+Nremaining = Ntotal - Ntechnical - Net - NtaskBad - NinverseTask - NsingleRemove
+NdoubleButSingle = length(unique(allDat$subject[allDat$removeReason=='Single']))
+
+if(Nremaining!=length(unique(allDat$subject[allDat$remove==F]))){warning('something does not add up!')}
+
+
+```
+Over all experiments `r Ntotal` subjects took part. We removed `r round(NsingleRemove/Ntotal*100)`% (n=`r NsingleRemove`) due to the screening experiments (see below). An additional `r round((Nperformance)/Ntotal*100)`% (n=`r Nperformance`) were removed due to low performance (n=`r NtaskBad`,<75% correct in half of the locations in the unique condition) or inversion of task (n=`r NinverseTask`). The experimental data was not recorded in `r round(Nexperiment/Ntotal*100)`% (n=`r Nexperiment`) due to eye tracking calibration problems (n=`r Net`) and other problems during data collection (n=`r Ntechnical`). The remaining `r Nremaining` were recorded in the following experiments: 
+```{r subject measures}
+datUse = subset(allDat,allDat$remove==F)
+dAgg = ddply(datUse,.(subject,experiment),function(x)data.frame(age=x$age[1],sex=x$sex[1]=='F',dEye=x$dominantEye[1],hand=x$handedness[1]))
+
+d = ddply(dAgg,.(experiment),summarise,lowA = min(age),higA = max(age),mA = mean(age),s=sum(sex),e=sum(dEye),h=sum(hand),n=length(unique(subject)))
+d$mA = round(d$mA,1)
+dTot = summarise(dAgg,lowA = min(age),higA = max(age),mA = mean(age),s=sum(sex),e=sum(dEye),h=sum(hand),n=length(unique(subject)))
+```
+For the first experiment we analyzed `r d[2,'n']` subjects (age `r d[2,'mA']` [lo:`r d[2,'lowA']` hi:`r d[2,'higA']`], `r d[2,'s']` female, `r d[2,'h']` right handed, `r d[2,'e']` right-eye dominant) with a subset of 15 taking part in the EEG study of Ehinger et al.. In the second experiment we recorded `r d[1,'n']` subjects (age `r d[1,'mA']` [lo:`r d[1,'lowA']` hi:`r d[1,'higA']`], `r d[1,'s']` female, `r d[1,'h']` right handed, `r d[1,'e']` right-eye dominant) and in the third, `r d[3,'n']` subjects (age `r d[3,'mA']` [lo:`r d[3,'lowA']` hi:`r d[3,'higA']`], `r d[3,'s']` female, `r d[3,'h']` right handed, `r d[3,'e']` right-eye dominant). All analysis are based on these `r Nremaining` participants.
+
+
+Alternative formulation:  
+For the first experiment we analyzed `r d[2,'n']`, in the second  `r d[1,'n']`  and in the third, `r d[3,'n']` subjects (age `r dTot['mA']` [lo:`r dTot['lowA']` hi:`r dTot['higA']`], `r dTot['s']` female, `r dTot['h']` right handed, `r dTot['e']` right-eye dominant). All analysis are based on these `r Nremaining` participants.
+
+
+
+Data of n = `r NdoubleButSingle` (of `r NsingleRemove`) subjects who failed the screening are also available for analysis.
+
+```{r Trials}
+
+Ntrialsremaining = ddply(dat.uni,.(subject),summarise,nT=length(trial))$nT
+trialsQuantile = round(quantile(Ntrialsremaining,c(0.05,0.95)))
+
+```
+
+After cleaning trials for fixation deviation and blinks on average `r round(mean(Ntrialsremaining),0) ` [90%-quantile:`r trialsQuantile[1]`, `r trialsQuantile[2]`] remained.
