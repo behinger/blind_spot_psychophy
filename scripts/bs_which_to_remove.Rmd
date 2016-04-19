@@ -3,7 +3,7 @@ knitr::opts_chunk$set(echo=T,warning=F,message=T,cache=F,fig.width=12,fig.height
 library(plyr)
 ```
 ```{r Read Data}
-load('AllDataFrame_alsoBad.RDATA')
+load('../data/behavioural/AllDataFrame_alsoBad.RDATA')
 dat = subset(allDat,allDat$removeReason!='Single')
 dat.ortho = subset(dat,dat$success==1&dat$stimPVisible==2)
 dat.uni = subset(dat,dat$success==1&dat$stimPVisible!=2)

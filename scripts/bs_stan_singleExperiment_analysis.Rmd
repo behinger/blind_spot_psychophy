@@ -21,10 +21,10 @@ library(ggmcmc)
 #dat.uni  = subset(dat,dat$stimPVisible != 2)
 
 
-load('stan_exp1_25_09_2015')
-load('stan_exp2_25_09_2015')
-load('stan_exp3_25_09_2015')
-load('stan_expAll_allFac_28_09_2015')
+load('../cache/stan/stan_exp1_25_09_2015.RData')
+load('../cache/stan/stan_exp2_25_09_2015.RData')
+load('../cache/stan/stan_exp3_25_09_2015.RData')
+load('../cache/stan/stan_expAll_allFac_28_09_2015.RData')
 
 
 dat.exp1 = subset(dat.uni,dat.uni$experiment=='EEG')
@@ -175,7 +175,10 @@ knitr::kable(outesAll)
 
 ```{r}
 # Take the raw 0 / 1 trials to percentage, and subtract subjectwise the mean
-data_to_plot = normalize_answer(get_prob_answer(dat.uni))
+x = get_prob_answer(dat.uni)
+x$prob = x$answer
+x$subject = factor(x$subject)
+data_to_plot = normalize_answer(x)
 # We addback the experiment information and rename EEG/Control/Horizontal to Exp1/Exp2/exp3
 data_to_plot$experiment = factor(dat.uni$experiment[match(data_to_plot$subject,dat.uni$subject)],levels=c("EEG","Control","Horizontal"),labels =c('Exp.1','Exp.2','Exp.3'))
 
