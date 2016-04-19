@@ -24,3 +24,6 @@ To run the analyses about the sizes of the blind spot see [here](scripts/bs_blin
 #### Bayesian Mixed Model Analysis
 The analyses of the mixed models are somewhat extensive. There are two main files [this](scripts/bs_stan_matrix.R) for the analysis of all experiments, and [this](scripts/bs_stan_singleExperiment_analysis.Rmd) for the analysis of the single experiments. The first script calls the second one.
 A *kniter'ed* version can be found [here](scripts/bs_stan_matrix.html).
+
+#### Which subjects to remove
+[this Rmd](scripts/bs_which_to_remove.Rmd) ([or the *kniter'ed* version](scripts/bs_which_to_remove.html)) makes statistics of which subjects were removed and which the number of trials
