@@ -24,15 +24,7 @@ px2deg = function(x,d) {
 First we load the data, we remove the unsuccesful and split it up into trials with visible orthogonal stimulus, and trials with invisible or both continuous (uni)
 ```{r load data}
 
-if(!exists("dat.uni")){
-load('../data/behavioural/AllDataFrame_alsoBad.RDATA') #allDataFrame <- createAllDataFrame()
-dat= subset(allDat,allDat$remove==F&allDat$success==1);
-dat.orth = subset(dat,dat$stimPVisible == 2)
-dat.uni  = subset(dat,dat$stimPVisible != 2)
-
-dat.uni$subjectIndex = as.numeric(factor(dat.uni$subject))
-dat.uni$controlTrial = as.factor(dat.uni$controlTrial)
-}
+source('revisions_1/bs_init.R')
 #dat.raw = allDataFrame;
 #dat = subset(dat.raw, (dat.raw$subject!=26&dat.raw$subject!='M'&dat.raw$success == 1))
 #dat$subject = factor(dat$subject)
