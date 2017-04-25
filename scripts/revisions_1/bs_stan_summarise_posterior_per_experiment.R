@@ -32,18 +32,18 @@ S.exp4a = ggs(factorialFit.exp4a,par_labels = get_label(exchangeIdx=NULL,
                                                         exchangeVal= NULL,
                                                         formula = ~1+stimLLoc + stimRLoc +oneBack,
                                                         dat=dat.exp4a),              family = 'beta')
-S.exp4a$Parameter = revalue(S.exp4a$Parameter,c('handedness'='dominantEye'))
+#S.exp4a$Parameter = revalue(S.exp4a$Parameter,c('handedness'='dominantEye'))
 
-warning('removing handedness in 4a, only right handed so far')
+#warning('removing handedness in 4a, only right handed so far')
 show(unique(S.exp4a$Parameter))
 
 S.exp4b = ggs(factorialFit.exp4b,par_labels = get_label(exchangeIdx=c(7),
                                                         exchangeVal= c("stimRLoc:controlTrial3"),
                                                         formula = ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack,
                                                         dat=dat.exp4b),              family = 'beta')
-S.exp4b$Parameter = revalue(S.exp4b$Parameter,c('handedness'='dominantEye'))
+#S.exp4b$Parameter = revalue(S.exp4b$Parameter,c('handedness'='dominantEye'))
 
-warning('removing handedness in 4b, only right handed so far')
+#warning('removing handedness in 4b, only right handed so far')
 show(unique(S.exp4b$Parameter))
 
 

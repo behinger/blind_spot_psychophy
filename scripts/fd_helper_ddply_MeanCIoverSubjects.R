@@ -1,5 +1,5 @@
 fd_helper_ddply_MeanCIoverSubjects = function(df,name,yname="choicetime",fun="mean"){
-  source('helper/calc_boot_ci.R')
+  source('calc_boot_ci.R')
   library(plyr)
   
 #browser()

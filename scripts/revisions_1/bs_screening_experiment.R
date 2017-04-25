@@ -125,8 +125,8 @@ failReasonsKep = ddply(dat.single.kep,.(subject),summarise,
                     noInsetFail = sum(answer[inset==F]==2,na.rm = T)
 )
 
-ddply(reshape2::melt(failReasons),.(variable),summarise,sum = sum(value!=0),percentage = mean(value!=0)*100)
-ddply(reshape2::melt(failReasonsKep),.(variable),summarise,sum = sum(value!=0),percentage = mean(value!=0)*100)
+ddply(reshape2::melt(failReasons),.(variable),summarise,sum = sum(value!=0),percentage = round(mean(value!=0)*100))
+ddply(reshape2::melt(failReasonsKep),.(variable),summarise,sum = sum(value!=0),percentage = round(mean(value!=0)*100))
 # What is the population difference between keep and remove?
 ggplot(allDataFrame,aes(x=locCond,y=correct,color=inset)) + stat_summary(position = position_dodge(width=0.3),fun.data=binom_errorbars) + facet_grid(.~remove)+ylim(c(0,1))
 

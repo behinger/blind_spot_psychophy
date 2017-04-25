@@ -27,34 +27,26 @@ d4a = subset(d4a,d4a$stimLLoc!=d4a$stimRLoc & d4a$subject != 'Inset4a.14')
 d4b = subset(d4b,d4b$stimLLoc!=d4b$stimRLoc & d4b$subject != 'Inset4a.14')
 
 
-
-v = cbind(d4a$prob[d4a$stimLLoc == 0],d4b$prob[d4b$stimLLoc == 0])%>%prcomp%$%rotation
-x1x2corstimLLoc0 = bCor = v[2,1]/v[1,1]
-v = cbind(d4a$prob[d4a$stimLLoc == 1],d4b$prob[d4b$stimLLoc == 1])%>%prcomp%$%rotation
-x1x2corstimLLoc1 = bCor = v[2,1]/v[1,1]
+d4aAgg = ddply(d4a,.(subject),summarise,prob = (mean(prob[stimLLoc==0&stimRLoc==1])-mean(prob[stimLLoc==1&stimRLoc==0]))/2*100,.drop=T)
+d4bAgg = ddply(d4b,.(subject),summarise,prob = (mean(prob[stimLLoc==0&stimRLoc==1])-mean(prob[stimLLoc==1&stimRLoc==0]))/2*100,.drop=T)
 
 
+v = cbind(d4a$prob,d4b$prob)%>%prcomp%$%rotation
+x1x2cor = v[2,1]/v[1,1]
 
 
-qplot(d4a$prob,d4b$prob,color=factor(d4b$stimLLoc))+
+
+
+qplot(d4aAgg$prob,d4bAgg$prob)+
   geom_hline(yintercept = 0,color='lightgray')+geom_vline(xintercept = 0,color='lightgray')+
-  geom_abline(slope=-1,intercept = 0)+
-  coord_cartesian(xlim=c(-.5,.5),ylim=c(-.5,.5)) + 
-  geom_abline(intercept = 0,slope = x1x2corstimLLoc0,color='red')+
-  geom_abline(intercept = 0,slope = x1x2corstimLLoc1,color='turquoise')+
-  tBE(20)+coord_fixed(xlim=c(-0.5,0.5),ylim=c(-0.5,0.5))+
-  annotate('text',x= 0.4,y=0.4,
-           label=paste0('corr:',round(cor(d4a$prob,d4b$prob),2)))+
-  annotate('text',x= 0.4,y=0.35,color='turquoise',
-           label=paste0('corr:',round(cor(d4a$prob[d4a$stimLLoc==1],d4b$prob[d4b$stimLLoc==1]),2)))+
-  annotate('text',x= 0.4,y=0.3,color='red',
-           label=paste0('corr:',round(cor(d4a$prob[d4a$stimLLoc==0],d4b$prob[d4b$stimLLoc==0]),2)))+
+  geom_abline(slope=-1,intercept = 0)+ 
+  geom_abline(intercept = 0,slope = x1x2cor,color='red')+
+  tBE(20)+coord_fixed(xlim=c(-50,25),ylim=c(-25,50))+
+  annotate('text',x= 25,y=40,
+           label=paste0('corr:',round(cor(d4aAgg$prob,d4bAgg$prob),2)))+
   xlab('Inset 4a') + ylab('Inset 4b')
 
 
-cor(d4a$prob,d4b$prob)
-
-cor(d4a$prob[d4a$stimLLoc==1],d4b$prob[d4b$stimLLoc==1])
-cor(d4a$prob[d4a$stimLLoc==0],d4b$prob[d4b$stimLLoc==0])
+cor(d4aAgg$prob,d4bAgg$prob)
 
 ggsave('../export/Figure4_inset.pdf',width=6,height=4,useDingbats=FALSE,scale=1.2)

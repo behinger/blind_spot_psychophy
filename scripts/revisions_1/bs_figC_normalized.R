@@ -31,10 +31,10 @@ ggplot(data_to_plot, aes(x = interaction(controlTrial,experiment,tempoEffect,BSe
   geom_point(alpha=.3,
              position = position_jitterdodge(jitter.width = .05,jitter.height=0,dodge.width = .5)) +
   stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",position=position_dodge(width=.5),size=.8)+
-  coord_cartesian(ylim = c(55, 105))  +tBE(base_family = 'sans',base_size = 16)+
-  coord_cartesian(ylim = c(-55,55))+scale_y_continuous(breaks=c(-50,-25,0,25,50)) +theme(axis.text.y = element_blank(),axis.title.y = element_blank(),axis.ticks.y=element_blank())+coord_flip()
+  coord_cartesian(ylim = c(55, 105))  +tBE(base_family = 'sans',base_size = 16) +
+  coord_cartesian(ylim = c(-55,55))+scale_y_continuous(breaks=c(-50,-25,0,25,50),position = "top") +theme(axis.text.x = element_blank(),axis.title.x = element_blank(),axis.ticks.x=element_blank())
 
-ggsave('../export/FigureC-normalized.pdf',width=6,height=4,useDingbats=FALSE,scale=1.8)
+ggsave('../export/FigureC-normalized.pdf',width=6,height=4,useDingbats=FALSE,scale=1.6)
 
 
 

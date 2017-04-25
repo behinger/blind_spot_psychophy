@@ -1,5 +1,6 @@
 
 if(1==0){
+  source('revisions_1/bs_load_stan.R')
   postPredAll = NULL
   for(exp in c("EEG","Control","Inset4b",'Inset4a')){
     if(exp=='EEG'){ 
@@ -17,12 +18,12 @@ if(1==0){
     if(exp=='Inset4b'){ 
       stanfit = factorialFit.exp4b
       data = dat.exp4b
-      data = subset(data,!(data$subject%in%c('Inset4b.35','Inset4b.38','Inset4b.39','Inset4b.40','Inset4b.41'))) # I did not yet put the dmoinant eye / handedness
+      #data = subset(data,!(data$subject%in%c('Inset4b.35','Inset4b.38','Inset4b.39','Inset4b.40','Inset4b.41'))) # I did not yet put the dmoinant eye / handedness
       }
     if(exp=='Inset4a'){ 
       stanfit = factorialFit.exp4a
       data = dat.exp4a
-      data = subset(data,!(data$subject%in%c('Inset4a.35','Inset4a.38','Inset4a.39','Inset4a.40','Inset4a.41'))) # I did not yet put the dmoinant eye / handedness
+      #data = subset(data,!(data$subject%in%c('Inset4a.35','Inset4a.38','Inset4a.39','Inset4a.40','Inset4a.41'))) # I did not yet put the dmoinant eye / handedness
     }
     
     
@@ -31,11 +32,9 @@ if(1==0){
     }else{
     formRan = ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack
     }
-    if(exp=='Inset4b'|exp=='Inset4a'){
-      formFix = ~0+dominantEye
-    }else{
+    
       formFix = ~0+handedness+dominantEye
-    }
+    
     #current.na.action <- options('na.action')
     #options(na.action='na.pass')
     
@@ -62,28 +61,30 @@ if(1==0){
   }
 
 
-  tmp = subset(dat.uni,dat.uni$controlTrial==1 & dat.uni$experiment!='Horizontal')
+  tmp = subset(dat.uni,dat.uni$controlTrial==1 & dat.uni$experiment!='Horizontal') # there is a strange bug in horizontal where the subjects are mixed up.
   
   ggplot(subset(postPredAll,postPredAll$type =='sameSubjectPP'),aes(x=interaction(stimLLoc,stimRLoc),y=answer))+
     geom_violin(scale='width')+
     geom_point(data = ddply(tmp,.(stimLLoc,stimRLoc,subject),summarise,answer=mean(answer)))+facet_wrap(~subject)+tBE()+
     theme(strip.background = element_blank(),
           strip.text.x = element_blank())
+  ggsave(file='../export/SupplementaryAa_postPred.pdf',useDingbats=F,width=6,height=4,scale=1.5)
   
   
-  postPredCumNewSubject = ddply(subset(postPredCum,postPredCum$type =='newSubjectPP'),.(subject,postPredIteration,stimLLoc,stimRLoc),summarize,answer = mean(answer))
+  postPredCumNewSubject = ddply(subset(postPredAll,postPredAll$type =='newSubjectPP'),.(subject,postPredIteration,experiment,stimLLoc,stimRLoc),summarize,answer = mean(answer))
   
   # We do not want inset 4a in this plot, it has the reverse bias
-  ppSubjectDiff = ddply(subset(postPredCum,postPredCum$type =='newSubjectPP' & experiment!='Inset4a'),.(subject,postPredIteration),summarize,answerDiff = mean(answer[stimLLoc==0 & stimRLoc==1] - answer[stimLLoc==1 & stimRLoc==0]))
-
-  subjectDiff = ddply(tmp,.(subject,experiment),summarise,answerDiff=mean(answer[stimLLoc==0 & stimRLoc==1] - answer[stimLLoc==1 & stimRLoc==0]))
+  ppSubjectDiff = ddply(subset(postPredAll,postPredAll$type =='newSubjectPP' & experiment!='Inset4a'),.(subject,postPredIteration),summarize,answerDiff = mean(answer[stimLLoc==0 & stimRLoc==1] - answer[stimLLoc==1 & stimRLoc==0]))
+  options(warn=1)
+  
+  subjectDiff = ddply(tmp,.(subject,experiment),summarise,answerDiff=mean(answer[stimLLoc==0 & stimRLoc==1]) - mean(answer[stimLLoc==1 & stimRLoc==0]),.inform = T)
   subjectDiff = subset(subjectDiff,subjectDiff$experiment != 'Inset4a')
   ggplot(subjectDiff,aes(x=100*answerDiff))+
-    geom_histogram(aes(y=..density..))+
+    geom_histogram(aes(y=..density..),bins=30)+
     geom_density(color='red',data=ppSubjectDiff,size=1)+tBE(20) + 
     geom_density(size=1)+geom_point(aes(y=-0.003),position=position_jitter(height=0.001))+
     xlab('mean Blind Spot Effect [%]')
-  
+  ggsave(file='../export/SupplementaryAb_blindspotEffect.pdf',useDingbats=F,width=6,height=2,scale=1.5)
   
 
   
@@ -141,8 +142,8 @@ bs_posteriorPredictive = function(stanfit,ranX,fixX,subjectIndexVector,nIter = 1
     ran = mnormt::rmnorm(n=nSub,mean=beta[1:(length(beta)-n_beta_fix)],varcov=diag(sigma) %*% covmat %*%diag(sigma))
     
     # This is taking the estimates of the subjects values, i.e. measuring the same subjects again
-    ran.sub = t(t(u)+beta[1:(length(beta)-length(fixX[1,]))])
-    fix = beta[(length(beta)-length(fixX[1,])+1):length(beta)]
+    ran.sub = t(t(u)+beta[1:(length(beta)-n_beta_fix)])
+    fix = beta[(length(beta)-n_beta_fix+1):length(beta)]
     # This is a bit ugly because I did not know how to use adply with an additional loop-index (which one needs to tile down the fullModelMatrix.
     # Thus the head/tail combo
     #ran = cbind(ran,1:nSub)
