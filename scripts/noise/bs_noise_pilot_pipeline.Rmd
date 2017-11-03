@@ -1,0 +1,144 @@
+#!/usr/bin/Rscript
+```{r setup}
+knitr::opts_knit$set(root.dir = '/net/store/nbp/users/behinger/projects/blindspot/git/')
+cfg = list(method = 'sampling')
+#cfg = list(method = 'meanfield')
+
+```
+
+```{r grid call}
+if(1==0){
+  
+  source('scripts/grid_tools.R')
+cfg_grid = list(gridOutputPath = file.path('/net/store/nbp/users/behinger/projects/blindspot/git/tmp/gridoutput'),
+                t = "1",
+                parallel="4",
+                requirements = 'mem=2G,h=!ramsauer.ikw.uni-osnabrueck.de',
+                add_to_filename = '',
+                job_name = 'stan',
+                command = 'y', # if you want to call a script, put this to no
+                #script_name = 'Rscript -e "print(\'hello\')"')
+                script_name = 'Rscript -e "rmarkdown::render(\'/net/store/nbp/users/behinger/projects/blindspot/git/scripts/noise/bs_noise_pilot_pipeline.Rmd\',\'html_document\',output_dir=\'/net/store/nbp/users/behinger/projects/blindspot/git/tmp\')"')
+
+run_on_grid(cfg_grid)  
+}
+
+#cfg = list(method = 'meanfield')
+```
+
+```{r init and load}
+
+library(lme4)
+library(dplyr)
+library(simr)
+library(rstanarm)
+library(ggplot2)
+
+print(getwd())
+source('scripts/noise/bs_noise_loaddata.R')
+d_noise_raw = bs_noise_loaddata_pilot()
+d_noise_raw$subject = as.factor(d_noise_raw$subject)
+d_noise_raw = d_noise_raw%>%group_by(subject)%>%mutate(noisen1 = c(NA,noise[1:length(noise)-1]))
+
+source('scripts/revisions_1/bs_init.R')
+d_elife_raw  = dat.uni%>%subset(experiment!='Inset4a'&controlTrial==1)
+d_elife_raw$controlTrial = as.numeric(as.character(d_elife_raw$controlTrial))
+
+bsFactor = function(d){
+    
+  d$bsFactor = 0
+  d$bsFactor[d$stimLLoc == 0 & d$stimRLoc == 1] = 1 # 1 instead of 0.5 because we are intersted in the average effect, not the difference
+  d$bsFactor[d$stimLLoc == 1 & d$stimRLoc == 0] = -1
+  d = d %>% subset(bsFactor !=0)
+  
+  d$answerbs = NaN
+  d$answerbs[d$answer==1 & d$bsFactor==1] = 1
+  d$answerbs[d$answer==0 & d$bsFactor==1] = 0
+  d$answerbs[d$answer==0 & d$bsFactor==-1] = 1
+  d$answerbs[d$answer==1 & d$bsFactor==-1] = 0
+  return(d)
+}
+d_elife = bsFactor(d_elife_raw)
+
+d_noise = bsFactor(d_noise_raw)
+d_noise$bsFactor_noise = d_noise$bsFactor * d_noise$noise
+d_noise$bsFactor_noisen1 = d_noise$bsFactor * d_noise$noisen1
+
+```
+
+## Hypothesis 0
+A blind spot effect for noise free stimuli
+
+```{r blindspot effect}
+  res.simple = stan_glmer(answerbs ~ 1+(1|subject),data=d_noise%>%subset(noise==0),family=binomial,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+  # BS effect is coded with -1 / 1 => average effect is the result of bsFactor
+  posterior = as.data.frame(res.simple)
+  posterior$bseffect = 1/(1+exp(-posterior$'(Intercept)'))
+  ggplot(posterior,aes(x=bseffect))+geom_histogram()+geom_vline(xintercept = quantile(posterior$bseffect,c(0.025,0.975)))+ggtitle('posterior of average blind spot effect')
+  
+```
+## Hypothesis 1
+The effect should be larger than in the elife paper
+```{r combineData}
+d_combined = bind_rows(d_elife%>%mutate(experiment='elife',noise=0),d_noise)
+ggplot(d_combined%>%subset(noise==0),aes(x=1,y=answerbs,group=experiment,color=experiment))+geom_jitter(height=0.1)+stat_summary() + geom_hline(yintercept=0.5)
+```
+
+```{r experiment-effect}
+  res.experiment = stan_glmer(answer ~ experiment+(1|experiment/subject),data=d_combined%>%subset(noise==0),family=binomial,prior_covariance = decov(regularization = 2),algorithm = cfg$method,QR=FALSE)
+  posterior = as.data.frame(res.experiment)
+  posterior$experimentnoise_prob = 1/(1+exp(-posterior$experimentnoise))
+  # quite approximate difference in percent
+  
+  0.5-coda::HPDinterval(coda::as.mcmc(posterior$experimentnoise_prob),0.95)
+  coda::HPDinterval(coda::as.mcmc(posterior$experimentnoise),0.95)
+  coda::HPDinterval(posterior$experimentnoise,0.95)
+  100*(0.5-1/(1+exp(-res.experiment$coefficients["experimentnoise"])))
+```
+## Hypothesis 2
+We want to model the noise-dependency
+
+```{r noise-effect}
+
+res.noisespline = stan_gamm4(answerbs ~ 1 +  s(noise)         ,data=d_noise,random = ~(1+noise|subject),family = binomial,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+res.noiselinear = stan_gamm4(answerbs ~ 1 +  noise            ,data=d_noise,random = ~(1+noise|subject),family = binomial,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+res.noisebsl    = stan_glmer(answerbs ~ 1 + (1+noise|subject) ,data=d_noise,                            family = binomial,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+
+#loo.noisespline = loo(res.noisespline)
+#loo.noiselinear = loo(res.noiselinear)
+#loo.noisebsl    = loo(res.noisebsl)
+
+#compare_models(loo.noisespline,loo.noiselinear,loo.noisebsl)
+```
+
+## Hypothesis 3a
+
+
+```{r noise-sequential-effect}
+res.noise_n1spline = stan_gamm4(answerbs ~ 1+s(noisen1),         data=d_noise%>%subset(noise==0),random = ~(1+noisen1|subject),family = binomial,QR=F,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+res.noise_n1linear = stan_glmer(answerbs ~ 1+noisen1 + (1+noisen1|subject),data=d_noise%>%subset(noise==0),family = binomial,QR=F,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+
+res.noise_n1bsl    = stan_glmer(answerbs ~ 1+(1+noisen1|subject),data=d_noise%>%subset(noise==0),family = binomial,QR=F,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+
+#loo.noise_n1spline = loo(res.noise_n1spline)
+#loo.noise_n1linear = loo(res.noise_n1linear)
+#loo.noise_n1bsl    = loo(res.noise_n1bsl)
+#compare_models(loo.noisespline,loo.noiselinear,loo.noise_n1bsl)
+
+```
+
+## Hypothesis 3b
+```{r noise-sequential-effect-2Dspline}
+res.noise_n1_full   = stan_gamm4(answerbs ~ 1+s(noise,noisen1),   data=d_noise,random = ~(1+noise+noisen1|subject),family = binomial,QR=F,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+res.noise_n1_simple = stan_gamm4(answerbs ~ 1+s(noise)+s(noisen1),data=d_noise,random = ~(1+noise+noisen1|subject),family = binomial,QR=F,prior_covariance = decov(regularization = 2),algorithm = cfg$method)
+
+#loo.noise_n1_full = loo(res.noise_n1_full)
+#loo.noise_n1_simple    = loo(res.noise_n1_simple)
+#compare_models(loo.noisespline,loo.noise_n1_full,loo.noise_n1_simple)
+
+```
+
+```{r saveData}
+save(paste0('/net/store/nbp/projects/EEG/blind_spot/',format(Sys.time(),"%Y-%m-%d_%H-%M-%S"),'_bs_noise_pilot.Rdata'))
+
+```
