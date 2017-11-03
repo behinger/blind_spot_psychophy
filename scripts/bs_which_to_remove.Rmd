@@ -3,12 +3,16 @@ knitr::opts_chunk$set(echo=T,warning=F,message=T,cache=F,fig.width=12,fig.height
 library(plyr)
 ```
 ```{r Read Data}
-load('../data/behavioural/AllDataFrame_alsoBad.RDATA')
-dat = subset(allDat,allDat$removeReason!='Single')
-dat.ortho = subset(dat,dat$success==1&dat$stimPVisible==2)
-dat.uni = subset(dat,dat$success==1&dat$stimPVisible!=2)
+#load('../data/behavioural/AllDataFrame_alsoBad.RDATA')
 
-perf.ortho = ddply(dat.ortho,.(subject,stimRLoc,stimLLoc),summarise,perf=mean(correct))
+source('revisions_1/bs_init.R')
+# Redefine dat and dat.orth and remove only the single subjects
+dat2 = subset(allDat,allDat$removeReason!='Single')
+dat.orth = subset(dat2,dat2$success==1&dat2$stimPVisible==2)
+dat.uni = subset(dat2,dat2$success==1&dat2$stimPVisible!=2)
+
+
+perf.ortho = ddply(dat.orth,.(subject,stimRLoc,stimLLoc,experiment),summarise,perf=mean(correct))
 
 
 
@@ -17,19 +21,21 @@ perf.ortho = ddply(dat.ortho,.(subject,stimRLoc,stimLLoc),summarise,perf=mean(co
 ```{r measures}
 
 
-taskInverse = ddply(perf.ortho,.(subject),summarise,num = sum(perf<0.5))
+taskInverse =                   ddply(subset(perf.ortho,perf.ortho$experiment!='Inset4a'),.(subject),summarise,num = sum(perf<0.5))
+taskInverse = rbind(taskInverse,ddply(subset(perf.ortho,perf.ortho$experiment=='Inset4a'),.(subject),summarise,num = sum(perf>0.5)))
 taskInverse.vp = taskInverse$subject[taskInverse$num>2]
 
-taskBad = ddply(perf.ortho,.(subject),summarise,num = sum(perf<0.75))
+taskBad =               ddply(subset(perf.ortho,perf.ortho$experiment!='Inset4a'),.(subject),summarise,num = sum(perf<0.75))
+taskBad = rbind(taskBad,ddply(subset(perf.ortho,perf.ortho$experiment=='Inset4a'),.(subject),summarise,num = sum(perf>0.25)))
 # Get subjects, which have more than two conditions a performance lower than 75%, but are not task-inverters
 taskBad.vp = taskBad$subject[taskBad$num>=2][!(taskBad$subject[taskBad$num>=2] %in% taskInverse.vp)]
 
-Ntotal = 136
+Ntotal = 175#136
 
-Net = 3
-Ntechnical = 7
+Net = 4
+Ntechnical = 9
 
-NsingleRemove = 45
+NsingleRemove = 56
 NinverseTask =  length(taskInverse.vp)
 NtaskBad = length(taskBad.vp)
 Nperformance = NinverseTask+NtaskBad
@@ -39,7 +45,7 @@ Nexperiment = Ntechnical + Net
 Nremaining = Ntotal - Ntechnical - Net - NtaskBad - NinverseTask - NsingleRemove
 NdoubleButSingle = length(unique(allDat$subject[allDat$removeReason=='Single']))
 
-if(Nremaining!=length(unique(allDat$subject[allDat$remove==F]))){warning('something does not add up!')}
+if(Nremaining!=length(unique(allDat$subject[allDat$remove==F]))-24){warning('something does not add up!')} # minus 24, because the inset subjects are counted twice
 
 
 ```
@@ -63,10 +69,31 @@ For the first experiment we analyzed `r d[2,'n']`, in the second  `r d[1,'n']`  
 Data of n = `r NdoubleButSingle` (of `r NsingleRemove`) subjects who failed the screening are also available for analysis.
 
 ```{r Trials}
+dat_tmp = dat
+dat_tmp$subject = factor(gsub("Inset4a","Inset4b",as.character(dat_tmp$subject)))
+dat_tmp$experiment = factor(gsub("Inset4a","Inset4b",as.character(dat_tmp$experiment)))
 
-Ntrialsremaining = ddply(dat.uni,.(subject),summarise,nT=length(trial))$nT
-trialsQuantile = round(quantile(Ntrialsremaining,c(0.05,0.95)))
+Ntrialsremaining = ddply(dat_tmp,.(subject,experiment),summarise,nT=length(trial))
+trialsQuantile = ddply(Ntrialsremaining,.(experiment),function(x)round(quantile(x$nT,c(0.05,0.95)))) # the variation is minor.
+trialsQuantile = round(quantile(Ntrialsremaining$nT,c(0.05,0.95)))
+
+# ambiguous trials
+round(mean(ddply(dat_tmp,.(subject,experiment),summarise,nT=length(trial[stimPVisible<2]))$nT))
+# ambiguous per condition
+myMean = function(x,d){
+m = mean(x[d],trim=0.2)
+
+return(m)
+};
+
+
+
+
+trialDiffNasaltemporal = (ddply(dat_tmp,.(subject,experiment),summarise,nT=length(trial[stimPVisible<2 & (answer==1 & stimRLoc == 1) | (answer ==0 &  stimLLoc == 1)]))$nT-
+ddply(dat_tmp,.(subject,experiment),summarise,nT=length(trial[stimPVisible<2 & (answer==1 & stimRLoc == 0) | (answer ==0 &  stimLLoc == 0)]))$nT)
+ci = boot.ci(boot(trialDiffNasaltemporal,myMean,10000),type='bca')
+cbind(ci$bca[c(4,5)],m=ci$t0)
 
 ```
 
-After cleaning trials for fixation deviation and blinks on average `r round(mean(Ntrialsremaining),0) ` [90%-quantile:`r trialsQuantile[1]`, `r trialsQuantile[2]`] remained.
+After cleaning trials for fixation deviation and blinks on average `r round(mean(Ntrialsremaining$nT),0) ` [90%-quantile:`r trialsQuantile[1]`, `r trialsQuantile[2]`] remained.

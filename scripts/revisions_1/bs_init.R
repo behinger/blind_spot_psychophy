@@ -1,7 +1,7 @@
-source('bs_ggplot_theme.R')
-source('bs_paper_main.r')
+source('scripts/bs_ggplot_theme.R')
+source('scripts/bs_paper_main.r')
 
-setwd('/net/store/nbp/users/behinger/projects/blindspot/git/scripts')
+#setwd('/net/store/nbp/users/behinger/projects/blindspot/git/scripts')
 
 
 library(boot)
@@ -18,10 +18,10 @@ reload_data = 0
 if(reload_data){
  source('bs_load_all_data.R')
  allDat = bs_load_all_data()
- save('allDat',file='../data/behavioural/2017-01-27_data.RDATA') #allDataFrame <- bs_load_all_data() from bs_load_all_data
+ save('allDat',file='data/behavioural/2017-01-27_data.RDATA') #allDataFrame <- bs_load_all_data() from bs_load_all_data
 }
 
-load(file='../data/behavioural/2017-01-27_data.RDATA') #allDataFrame <- bs_load_all_data() from bs_load_all_data
+load(file='data/behavioural/2017-01-27_data.RDATA') #allDataFrame <- bs_load_all_data() from bs_load_all_data
 
 
 dat      = subset(allDat,allDat$remove==F&allDat$success==1);

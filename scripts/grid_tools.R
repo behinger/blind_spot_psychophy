@@ -22,12 +22,21 @@ run_on_grid = function(cfg_grid){
   if(is.null(cfg_grid$parallel)){
     cfg_grid$parallel = '1'
   }
+  if(is.null(cfg_grid$job_name)){
+    cfg_grid$job_name = cfg_grid$script_name
+  }
+  if(is.null(cfg_grid$command)){
+    cfg_grid$command = 'n' # backwards compatibility
+  }
   cmd=paste0('qsub -cwd -t ',cfg_grid$t,
              ' -o ', cfg_grid$gridOutputPath, '/ -e ', cfg_grid$gridOutputPath, '/',
              ' -l ', cfg_grid$requirements, 
-             ' -N ', cfg_grid$script_name, 
+             ' -N ', cfg_grid$job_name, 
+             ' -b ', cfg_grid$command,
              ' -pe default ', cfg_grid$parallel,
              ' -q nbp.q ',cfg_grid$script_name)
+  print(cmd)
   system(cmd)
+  
   
 }
