@@ -31,9 +31,11 @@ run_on_grid(cfg_grid)
 library(lme4)
 library(dplyr)
 library(simr)
+library(rstan)
 library(rstanarm)
 library(ggplot2)
 
+options(mc.cores = parallel::detectCores())
 print(getwd())
 source('scripts/noise/bs_noise_loaddata.R')
 d_noise_raw = bs_noise_loaddata_pilot()
@@ -43,6 +45,8 @@ d_noise_raw = d_noise_raw%>%group_by(subject)%>%mutate(noisen1 = c(NA,noise[1:le
 source('scripts/revisions_1/bs_init.R')
 d_elife_raw  = dat.uni%>%subset(experiment!='Inset4a'&controlTrial==1)
 d_elife_raw$controlTrial = as.numeric(as.character(d_elife_raw$controlTrial))
+
+
 
 bsFactor = function(d){
     
