@@ -1,7 +1,7 @@
 
 source('/net/store/nbp/projects/EEG/blind_spot/bs_svn/analysis/r-analysis/bsHoriz_processOneSubject.R')
 
-bs_noise_loaddata_pilot = function(){
+bs_noise_loaddata = function(pilot=F){
   loadData <- function(file){
     library(R.matlab)
     data = readMat(file)
@@ -24,15 +24,30 @@ bs_noise_loaddata_pilot = function(){
     return(returnDataFrame)
   }
   
-  path_to_files = '/net/store/nbp/projects/EEG/blind_spot/data/noise/'
   
+  path_to_files = '/net/store/nbp/projects/EEG/blind_spot/data/'
   res = NULL
-  for(sub in c(1,3,20,22,23,24,27,3,5,10,13,27,29,30,31)){
-    res = tryCatch(
-    rbind(res,cbind(subject = sub,processStimuli(paste0(path_to_files,sprintf("%02i/bs_%02i_ns.mat",sub,sub)),experiment='EEG')))
-    ,error = function(e){
-      rbind(res,cbind(subject = sub,processStimuli(paste0(path_to_files,sprintf("%02i/bs_%i_ns.mat",sub,sub)),experiment='EEG')))
-    })
+  if (pilot){
+    path_to_files = paste0(path_to_files,'noise_pilots/noise/')
+  }else{
+    path_to_files = paste0(path_to_files,'noise/')
+  }
+  
+  subjectList =  list.files(path_to_files,pattern='[0-9]{1,3}')
+  subjectList = as.numeric(stringr::str_extract(subjectList,'[0-9]{1,3}'))
+  for(sub in subjectList){ #101 had only no noise and lots of full noise
+    if (pilot & sub %in% c(11,21,101,30)){  
+      print('removing pilot subject 11 + 21 (no data), 101 (only full and no noise) and 30 (effect in opposite direction)')
+      next
+    }
+      res = tryCatch(
+              rbind(res,cbind(subject = sub,
+                              processStimuli(paste0(path_to_files,sprintf("%02i/bs_%02i_ns.mat",sub,sub)),experiment='EEG')))
+              ,error = function(e){
+                rbind(res,cbind(subject = sub,
+                                processStimuli(paste0(path_to_files,sprintf("%02i/bs_%i_ns.mat",sub,sub)),experiment='EEG')))
+              })
+
   }
   res$experiment = 'noise'
   return(res)

@@ -1,5 +1,5 @@
 
-metaData = gdata::read.xls('../data/Subject Overview_v4.xlsx',sheet=1)
+metaData = gdata::read.xls('data/Subject Overview_v4.xlsx',sheet=1)
 
 allDataFrame = data.frame()
 for(k in 1:length(metaData$VP)){
@@ -57,7 +57,7 @@ for(k in 1:length(metaData$VP)){
       singleSubData = rbind(data)
       
     }
-    allDataFrame = rbind(allDataFrame, with(subset(metaData,metaData$VP == number), 
+    allDataFrame = rbind(allDataFrame, with(subset(metaData,tolower(metaData$Experiment) == experiment & metaData$VP == number), 
                                             cbind(singleSubData, subject=VP,age=Alter,sex=Geschlecht,handedness=Handedness,dominantEye=DominantEye, experiment=Experiment,
                                                   remove=remove.,removeReason=Remove.Reas)))
     
@@ -82,13 +82,42 @@ allDataFrame[allDataFrame$experiment!='Horizontal','bsYL'] = px2deg(allDataFrame
 allDataFrame[allDataFrame$experiment!='Horizontal','bsYR'] = px2deg(allDataFrame[allDataFrame$experiment!='Horizontal','bsYR'],600)
 
 
+allDataFrame = allDataFrame %>% 
+  mutate(subject = interaction(subject,experiment))
 
-allDataFrame$inset = allDataFrame$oStim != allDataFrame$iStim
-allDataFrame$correct = as.numeric(((allDataFrame$answer==2)& allDataFrame$inset &(allDataFrame$locCond%in%c(2,3)))|
-                       ((allDataFrame$answer==1)& !allDataFrame$inset &(allDataFrame$locCond%in%c(1,2,3,4)))|
-                        ((allDataFrame$answer==1)& allDataFrame$inset &(allDataFrame$locCond%in%c(1,4))))
 
+allDataFrame = allDataFrame%>% 
+  mutate(inset = oStim != iStim) %>%
+   mutate(correct = answer == 2 &  inset & locCond %in% c(2,3) |
+                    answer == 1 &  inset & locCond %in% c(1,4) | 
+                    answer == 1 & !inset & locCond %in% c(1,2,3,4))
                             #((answer==2)==inset&(locCond%in%c(2,3)))| (((answer==1)==inset)&(locCond%in%c(1,4))))
+
+y = singleSubData%>%subset(block==2)%>% mutate(inset = oStim != iStim) %>%
+      mutate(correct = answer == 2 &  inset & locCond %in% c(2,3)     |
+                       answer == 1 &  inset & locCond %in% c(1,4) | 
+                       answer == 1 & !inset & locCond %in% c(1,2,3,4))
+x = allDataFrame%>%subset(subject=='C2.Control')%>%
+  subset(block==2)
+cbind(x[,c('trial','correct')],y[,c('trial','correct')])
+
+a = allDataFrame%>%
+  subset(block==2&success==1)%>%
+  group_by(subject,removeReason,inset,locCond)%>%
+  summarise(correct = mean(correct,na.rm=T))%>%
+  group_by(removeReason,subject)%>%
+  summarise(correct=sum(correct,na.rm = T))
+# Reconstruct removal criterion
+ggplot(allDataFrame%>%
+         subset(block==2&success==1&experiment=='PsyPhy')%>%
+         group_by(locCond,removeReason,subject,inset)%>%
+         summarise(correct = mean(correct,na.rm=T))%>%
+         group_by(removeReason,subject)%>%
+         summarise(correct=sum(correct,na.rm = T)),aes(x=subject,y=correct,color=removeReason))+
+  geom_point()+
+  facet_grid(removeReason~.)+geom_hline(yintercept = 0.94/6*48)
+
+  
 
 
 

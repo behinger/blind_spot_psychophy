@@ -38,7 +38,7 @@ library(ggplot2)
 options(mc.cores = parallel::detectCores())
 print(getwd())
 source('scripts/noise/bs_noise_loaddata.R')
-d_noise_raw = bs_noise_loaddata_pilot()
+d_noise_raw = bs_noise_loaddata(pilot=T)
 d_noise_raw$subject = as.factor(d_noise_raw$subject)
 d_noise_raw = d_noise_raw%>%group_by(subject)%>%mutate(noisen1 = c(NA,noise[1:length(noise)-1]))
 
@@ -65,8 +65,8 @@ bsFactor = function(d){
 d_elife = bsFactor(d_elife_raw)
 
 d_noise = bsFactor(d_noise_raw)
-d_noise$bsFactor_noise = d_noise$bsFactor * d_noise$noise
-d_noise$bsFactor_noisen1 = d_noise$bsFactor * d_noise$noisen1
+#d_noise$bsFactor_noise = d_noise$bsFactor * d_noise$noise
+#d_noise$bsFactor_noisen1 = d_noise$bsFactor * d_noise$noisen1
 
 ```
 

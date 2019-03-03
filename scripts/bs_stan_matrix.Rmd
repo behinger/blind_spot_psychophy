@@ -1,5 +1,5 @@
 ```{r setup, include=F}
-setwd('/net/store/nbp/projects/EEG/blind_spot/git_blind_spot_psychophy/scripts')
+setwd('/net/store/nbp/users/behinger/projects/blindspot/git/scripts')
 knitr::opts_chunk$set(echo=F,warning=F,message=F,cache=F,autodep=T,fig.width=12,fig.height=8)
 knitr::opts_chunk$set(cache=F)
 #knitr::opts_chunk$set(fig.path = "../cache/knitr/", dev='pdf') # corrected path and added dev
@@ -9,47 +9,55 @@ knitr::opts_chunk$set(cache=F)
 
 #setwd('C:/Users/behinger/Dropbox/blindspot/bs_svn/analysis/r-analysis/stan_2015')
 # 1. Read in the data
-load('../data/behavioural/AllDataFrame_alsoBad.RDATA') #allDataFrame <- createAllDataFrame()
-
+#load('../data/behavioural/AllDataFrame_alsoBad.RDATA') #allDataFrame <- bs_load_all_data() from bs_load_all_data
+#source('bs_load_all_data.R')
+#allDat = bs_load_all_data()
 source('bs_ggplot_theme.R')
+source('bs_paper_main.r')
+# 
 library(boot)
 library(ggplot2)
-library(plyr)
+# library(plyr)
 library(ggmcmc)
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores()-1)
+source('revisions_1/bs_init.R')
 
-#dat.raw = allDataFrame;
-#dat = subset(dat.raw, with(dat.raw,subject!=26&subject!='M'&success == 1))
-dat= subset(allDat,allDat$remove==F&allDat$success==1);
-dat.orth = subset(dat,dat$stimPVisible == 2)
-dat.uni  = subset(dat,dat$stimPVisible != 2)
-
-dat.uni$subjectIndex = as.numeric(factor(dat.uni$subject))
-dat.uni$controlTrial = as.factor(dat.uni$controlTrial)
-source('bs_paper_main.r')
+# 
+# #dat.raw = allDataFrame;
+# #dat = subset(dat.raw, with(dat.raw,subject!=26&subject!='M'&success == 1))
+# dat= subset(allDat,allDat$remove==F&allDat$success==1);
+# dat.orth = subset(dat,dat$stimPVisible == 2)
+# dat.uni  = subset(dat,dat$stimPVisible != 2)
+# 
+# dat.uni$subjectIndex = as.numeric(factor(dat.uni$subject))
+# dat.uni$controlTrial = as.factor(dat.uni$controlTrial)
 
 ```
 
 
 ```{R generate Design Matrix & Labels,echo=T}
 # 2. Make design matrix.
-dat.uni$controlTrial = as.factor(dat.uni$controlTrial)
-formula = ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack
-#formula = ~1+stimLLoc*controlTrial*stimRLoc +oneBack
 
-X <- unname(model.matrix(formula, dat.uni))
-X_fix = with(dat.uni,cbind(handedness,dominantEye,experiment=='Control',experiment=='Horizontal'))
-```
-```{r rename Parameters}
+  formula = ~1+stimLLoc*controlTrial + controlTrial*stimRLoc +oneBack+experiment
+  datAllStan = subset(dat.uni,dat.uni$experiment!='Inset4a')
+  datAllStan$experiment = factor(datAllStan$experiment)
+  X <- unname(model.matrix(formula, datAllStan))
+  X_fix = with(datAllStan,cbind(handedness,dominantEye))
+  
+  
+  attr(X,"assign") <- NULL
+  attr(X_fix,"assign") <- NULL
+  
 
-betaNames = colnames( model.matrix(formula, dat.uni))
+# Rename Parameters
+betaNames = colnames( model.matrix(formula, datAllStan))
 
-betaNames[11:13] = c("stimRLoc:controlTrial1", "stimRLoc:controlTrial2", "stimRLoc:controlTrial3")
-beta_fix_Names = c('handedness','dominantEye','ExperimentControl','ExperimentHorizontal')
-label_dataframe = data.frame(Parameter=sprintf('beta.%i.',1:length(betaNames)),Label=betaNames)
-label_dataframe = rbind(label_dataframe,data.frame(Parameter=sprintf('beta_fix.%i.',1:length(beta_fix_Names)),Label=beta_fix_Names))
+betaNames[14:16] = c("stimRLoc:controlTrial1", "stimRLoc:controlTrial2", "stimRLoc:controlTrial3")
+beta_fix_Names = c('handedness','dominantEye')
+label_dataframe = data.frame(Parameter=sprintf('beta[%i]',1:length(betaNames)),Label=betaNames)
+label_dataframe = rbind(label_dataframe,data.frame(Parameter=sprintf('beta_fix[%i]',1:length(beta_fix_Names)),Label=beta_fix_Names))
 attr(X,"assign") <- NULL
 attr(X_fix,"assign") <- NULL
 ```
@@ -57,55 +65,55 @@ attr(X_fix,"assign") <- NULL
 Because the sampling takes approx. 2.7h we load it
 ```{R Run Stan,echo=T}
 # 4. Make Stan data.
-stanDat <- within(list(),
-                  {
-                    N<-nrow(X)
-                    P <- n_u <- n_w <- ncol(X)
-                    P2 <- ncol(X_fix)
-                    X <- Z_u <- Z_w <- X
-                    X_fix <- X_fix
-                    J <- length(levels(dat.uni$subject))
-                    answer <- as.logical(dat.uni$answer)
-                    subj <- as.integer(dat.uni$subject)
-                  }
-)
+# stanDat <- within(list(),
+#                   {
+#                     N<-nrow(X)
+#                     P <- n_u <- n_w <- ncol(X)
+#                     P2 <- ncol(X_fix)
+#                     X <- Z_u <- Z_w <- X
+#                     X_fix <- X_fix
+#                     J <- length(levels(dat.uni$subject))
+#                     answer <- as.logical(dat.uni$answer)
+#                     subj <- as.integer(dat.uni$subject)
+#                   }
+# )
 # 5. Fit the model.
 #factorialFit <- stan(file="matrix_model.stan",data=stanDat,iter=2000, chains=6,cores = 6,open_progress = T)
 
+source('revisions_1/bs_load_stan.R')
 
-
-load('../cache/stan/stan_with_between_22_09_2015.RData')
+#load('../cache/stan/stan_with_between_22_09_2015.RData')
 
 ```
 
 ```{r Diagnostic Plots}
-
-S = ggs(factorialFit,par_labels = label_dataframe,family = 'beta')
+# This needs too much ram on my machine. It used to work with less data (exp 1-3, but not including exp. 4)
+#S = ggs(factorialFit.expAll,par_labels = label_dataframe,family = 'beta')
 ```
 ## Convergence Diagnostics
 
 ### Autocorrelation
 ```{r,echo=T} 
-ggs_autocorrelation(S)
+#ggs_autocorrelation(S)
 ```
 Autocorrelation seem to be OK.
 ### Potential Scale Reduction factor
 ```{r,echo=T}
-ggs_Rhat(S)
+#ggs_Rhat(S)
 ```
 All are below 1.1, we have indications that we converged on a useful solution
 
 ### Partial Density
 ```{r,echo=T,fig.height=14}
-ggs_compare_partial(S)
+#ggs_compare_partial(S)
 ```
 The first 10% seem to be in the same range as the rest of the parameters for all chains, thus burnin/warmup was enough
 
 
 ## Posterior Densities
 ```{r,echo=T,fig.height=14}
-ggs_density(S)+coord_cartesian(xlim=c(-1,1))
-ggs_caterpillar(S)
+#ggs_density(S)+coord_cartesian(xlim=c(-1,1))
+#ggs_caterpillar(S)
 ```
 
 ## Contrasts of interest
@@ -116,7 +124,9 @@ We fold over the two eyes/temporal fields. I.e. we take (left-right)/2 which tak
 To test whether BS is special, we take the differences of the BS effect and the now calculated location effects. We show 95% and 99% HDI
 ```{r Contrasts, echo=F}
 extP = function(x){
-  return(S[S$Parameter==x,'value'][[1]])
+  #return(S[S$Parameter==x,'value'][[1]])
+  tmpIdx = label_dataframe$Label == x
+  return(rstan::extract(factorialFit.expAll,pars=label_dataframe$Parameter[tmpIdx])[[1]])
 }
 mcmccontrast = rbind(
   data.frame(Parameter='location outside',value= (extP('stimLLoc') - (extP('stimRLoc')))/2),
@@ -147,10 +157,47 @@ ggplot(estimatesProb,aes(x = Parameter, y = median,ymin = `hdi0.025`, ymax = `hd
   geom_point(size = 4) +
   geom_errorbar(size = 0.75, width = 0.15, 
                 alpha = 0.5,position=position_dodge(width=.9)) +
-  labs(x = NULL, y = "Median Temporal Over Nasal Preference [%]") +
+  labs(x = NULL, y = "Temporal Over Nasal Preference [%]") +
   geom_abline(intercept = 0, slope = 0) +  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
 
 estimatesProbRound  = cbind(estimatesProb$Parameter,round(estimatesProb[,-1],2))
+```
+
+```{r}
+source('./revisions_1/bs_stan_summarise_posterior_per_experiment.R') # Extract appropriate Contrasts and HDI
+# Single Experiment results
+#es = estimates.exp.prob = bs_stan_summarise_posterior_per_experiment(factorialFit.exp1,factorialFit.exp2,factorialFit.exp3,factorialFit.exp4a,factorialFit.exp4b, dat.exp1,dat.exp2,dat.exp3,dat.exp4a,dat.exp4b)
+source('revisions_1/bs_aggregatedEffects.R')
+tmp = bs_aggregatedEffects(dat.uni)
+aggCI = tmp$aggCI
+datAgg = tmp$datAgg
+
+datAgg = subset(datAgg,datAgg$experiment!='Exp.4a')
+
+es2 = estimatesProbRound
+es2$controlTrial = c(3,2,1,4,5,6,7,8,9,10,11)
+
+# We handcode the position for the plot and changethe experimental names
+#es2$Parameter = c(2,2,4,7,1,2,3,5,6,2,2,4,8)
+#$experiment = factor(es2$Parameter.experiment, levels=c("EEG","Control","Horiz",'InsetA','InsetB'),labels =c('Exp.1','Exp.2','Exp.3','Exp.4a','Exp.4b'))
+aggCI$controlTrial[aggCI$experiment == 'Exp.4b'&aggCI$type=='difference'] = 7
+aggCI = subset(aggCI,aggCI$experiment!='Exp.4a')
+combinedDat=rbind.fill(cbind(es2,type="model",experiment='all'),aggCI)
+
+cbbPalette <- c("#000000", "#56B4E9","#E69F00", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+ggplot(combinedDat,aes(x = controlTrial, y = median,group=experiment,color=type))+
+  geom_point(size = 4,position=position_dodge(width=1))+
+  geom_errorbar(aes(ymin = `hdi0.025`, ymax = `hdi0.975`),size = 0.75, width = 0.15, 
+                alpha = 0.9,position=position_dodge(width=1)) +
+  labs(x = NULL, y = "Temporal Over Nasal Preference [%]") +tBE(base_family = 'sans',base_size = 16)+
+  geom_abline(intercept = 0, slope = 0) +
+  scale_x_discrete(breaks = 1:7, labels=c("Outward", "Blind Spot","Inward","Above","BS vs Outward","BS vs Inward", "BS vs Above"))+scale_color_manual(values=cbbPalette,guide=F)+scale_shape_discrete(guide=F)
+
+ 
+ggsave(filename="../export/Figure6_allExperiments.pdf",useDingbats=FALSE,width=11.5,height=5)
+
+
 ```
 [BS loc] = (effect over all experiments:  m = `r estimatesProbRound$median[2]`% HDI_95:[`r estimatesProbRound$hdi0.05[2]`%,`r estimatesProbRound$hdi0.95[2]`%])
 
@@ -216,40 +263,7 @@ ggsave(filename="../export/exp1.pdf",useDingbats=FALSE,width=5,height=4)
 
 ```{r plot with each experiment separated}
 
-get_prob_correct = function(dat){ ddply(dat, c("stimLLoc", "stimRLoc", "controlTrial", "subject"), summarise, prob=mean(correct))}
-
-plot_data = function(dat){
-  cbbPalette <- c("#56B4E9","#009E73", "#D55E00" , "#0072B2", "#CC79A7")
-  
-  dat$BSeffect = with(dat,(stimRLoc != stimLLoc) & (controlTrial == 1))
-  dat$tempoEffect = with(dat,stimRLoc != stimLLoc)
-  ggplot(dat, aes(x = interaction(controlTrial,experiment,tempoEffect,BSeffect),
-                  y = prob*100, color=interaction(stimRLoc,stimLLoc),
-                  shape=experiment,
-                  fill=factor(controlTrial)))+
-    geom_point(alpha=.3,
-                position = position_jitterdodge(jitter.width = .05,jitter.height=0,dodge.width = .5)) +
-    stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",position=position_dodge(width=.5))+
-    #stat_summary(fun.data = "mean_cl_boot", geom = "point",size=4,position=position_dodge(width=.9),size=5)+
-    #scale_x_discrete(breaks = 0:3, labels=c("outward \n (O . . + . . O)", "Blind Spot \n (. O . + . O .)","Inward \n (. . O + O . .)","Above\n (. ° . + . ° .)")) +
-    #labs(x =NULL, y = "Answer 'right' (normalized) [%]") +
-    coord_cartesian(ylim = c(55, 105))  +tBE(base_family = 'sans',base_size = 16)
-    #scale_color_manual(values=cbbPalette,
-    #                   name = "", 
-    #                   labels = c("Both Nasal","Left Temporal / Right Nasal ", "Right Temporal / Left Nasal", "Both Temporal") )
-}
-
-#plot_data(get_prob_correct(dat.orth))+labs(y='Inset correctly Identified [%]')+geom_abline(intercept = 50, slope = 0) +coord_cartesian(ylim=c(0,110))
-x = get_prob_answer(dat.uni)
-x$prob = x$answer
-x$subject = factor(x$subject)
-data_to_plot = normalize_answer(x)
-data_to_plot$experiment = factor(dat.uni$experiment[match(data_to_plot$subject,dat.uni$subject)],levels=c("EEG","Control","Horizontal"),labels =c('Exp.1','Exp.2','Exp.3'))
-#data_to_plot$experiment =order(data_to_plot$experiment,c(2,1,3))
-plot_data(data_to_plot)+coord_cartesian(ylim = c(-55,55))+geom_abline(intercept = 0, slope = 0)+scale_y_continuous(breaks=c(-50,-25,0,25,50))
-
-
-ggsave(filename="../export/normalized_data-splitExperiments.pdf",useDingbats=FALSE,width=6,height=3,scale=1.5)
+#ggsave(filename="../export/normalized_data-splitExperiments.pdf",useDingbats=FALSE,width=6,height=3,scale=1.5)
 ```
 
 ```{r child='bs_stan_singleExperiment_analysis.Rmd',cache=F}
@@ -257,17 +271,47 @@ ggsave(filename="../export/normalized_data-splitExperiments.pdf",useDingbats=FAL
 
 
 ```{r oneBack}
-show(round(summary(factorialFit)$summary["sigma_u[7]",],2))
+show(round(summary(factorialFit.expAll)$summary[paste0("sigma_u[",label_dataframe$Parameter[regexpr('oneBack',label_dataframe$Label) == 1] %>% substr(6,6),"]"),],2))
+a = rstan::extract(factorialFit.expAll,pars='L_u')
+covmat = array(0,dim=c(dim(a$L_u)[1],16,16))
+for(it in 1:dim(a$L_u)[1]){
+covmat[it,,] = (a$L_u[it,,])%*%t(a$L_u[it,,])
+}
+covmatMean = apply(covmat,c(2,3),mean)
+covmatQuantile = apply(covmat,c(2,3),quantile,c(0.025,0.975))
+colnames(covmatMean) = label_dataframe$Label[1:16]
+rownames(covmatMean) = label_dataframe$Label[1:16]
+
+GGally::ggcorr(covmatMean,label=T)
+GGally::ggcorr(covmatQuantile[1,,],label=T)
+GGally::ggcorr(covmatQuantile[2,,],label=T)
+q1 = GGally::ggcorr(covmatQuantile[1,,])$data
+q2 = GGally::ggcorr(covmatQuantile[2,,])$data
+
+sig = (q1$coefficient>0 &q2$coefficient>0) | (q1$coefficient<0 &q2$coefficient<0)
+
+
+GGally::ggcorr(covmatMean,label=T,geom='blank',label_round=2) + geom_point(size=10,aes(color=coefficient>0,alpha = sig))+  scale_alpha_manual(values = c("TRUE" = 0.25, "FALSE" = 0))
+
+
+sig = (covmatQuantile[1,,]>0 &covmatQuantile[2,,]>0) | (covmatQuantile[1,,]<0 &covmatQuantile[2,,]<0)
+corrplot::corrplot(covmatMean,method='square',plotCI = 'rect',outline=1,low=covmatQuantile[1,,],upp=covmatQuantile[2,,],type='upper',col=rev(RColorBrewer::brewer.pal(11,"RdYlBu")),p.mat =sig)
+
+
 ```
 
 ```{r otherEffects}
-estimates.other = ddply(S,.(Parameter),function(x){
-  cbind(data.frame(median=-median(x$value)),
-        t(quantile(-x$value,c(0.01,0.025,0.975,0.99))))
-})
-colnames(estimates.other) =  c('Parameter','median','hdi0.01','hdi0.025','hdi0.975','hdi0.99')
-estimates.other.prob = cbind(estimates.other[,1],round(50-100*invlogit(estimates.other[,2:6]),2))
 
-a = sprintf('%s: median = %.2f%% (hdi_95=[%.2f%%, %.2f%%]\n',estimates.other.prob$`estimates.other[, 1]`,estimates.other.prob$median,estimates.other.prob$hdi0.975,estimates.other.prob$hdi0.025)
+sum = data.frame(summary(factorialFit.expAll, pars=c('beta','beta_fix'))$summary)
+
+sum$Label = label_dataframe$Label
+
+
+estimates.other.prob = cbind(sum[,11],-round(50-100*invlogit(sum[,1:9]),2))
+
+a = sprintf('%s: median = %.2f%% (hdi_95=[%.2f%%, %.2f%%]\n',estimates.other.prob$`sum[, 11]`,estimates.other.prob$mean,estimates.other.prob$X97.5.,estimates.other.prob$X2.5.)
 cat(paste(a,collapse = ''))
+
+
+
 ```
